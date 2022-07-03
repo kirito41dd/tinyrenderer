@@ -2,115 +2,46 @@ use std::mem::swap;
 
 use image::GenericImage;
 
-// 画一个三角形
-pub fn triangle<I: GenericImage>(
-    mut t0: glm::Vec2,
-    mut t1: glm::Vec2,
-    mut t2: glm::Vec2,
-    image: &mut I,
-    color: I::Pixel,
-) {
-    if t0.y == t1.y && t0.y == t2.y {
-        return;
+// 求重心坐标
+fn barycentric(a: glm::IVec2, b: glm::IVec2, c: glm::IVec2, p: glm::IVec2) -> glm::Vec3 {
+    let ab = b - a;
+    let ac = c - a;
+    let pa = a - p;
+
+    let u = glm::cross(
+        glm::vec3(ab.x as f32, ac.x as f32, pa.x as f32),
+        glm::vec3(ab.y as f32, ac.y as f32, pa.y as f32),
+    );
+
+    // 因为传入坐标都是整数，所以z小于1就意味着z是0，这种情况是因为三角形三个顶点在一条直线上，不是合法三角形
+    // 这种情况返回一个负值
+    if u.z.abs() < 1. {
+        return glm::vec3(-1., 1., 1.);
     }
 
-    // 按y坐标排序
-    if t0.y > t1.y {
-        swap(&mut t0, &mut t1);
-    }
-    if t0.y > t2.y {
-        swap(&mut t0, &mut t2);
-    }
-    if t1.y > t2.y {
-        swap(&mut t1, &mut t2);
-    }
-
-    let total_height = t2.y - t0.y;
-    // 同时画两部分
-    for i in 0..=total_height as i32 {
-        let second_half = if i > (t1.y - t0.y) as i32 || t1.y == t0.y {
-            true
-        } else {
-            false
-        };
-        let segment_height = if second_half {
-            t2.y - t1.y
-        } else {
-            t1.y - t0.y
-        };
-        let alpha = i as f32 / total_height as f32;
-        let beta =
-            (i as f32 - if second_half { t1.y - t0.y } else { 0. }) as f32 / segment_height as f32; // be careful with divisions by zero
-
-        let mut a = t0 + (t2 - t0) * alpha;
-        let mut b = if second_half {
-            t1 + (t2 - t1) * beta
-        } else {
-            t0 + (t1 - t0) * beta
-        };
-        if a.x > b.x {
-            swap(&mut a, &mut b);
-        }
-        for j in a.x as i32..=b.x as i32 {
-            image.put_pixel(j as u32, (t0.y + i as f32) as u32, color);
-        }
-    }
+    // vec(x,y,z)/z -> (u,v,1) -> (1-u-v, u, v)
+    return glm::vec3(1. - ((u.x + u.y) / u.z) as f32, u.x / u.z, u.y / u.z);
 }
 
-// 扫描线画一个三角形，分上下两部分
-pub fn triangle_with_2_step<I: GenericImage>(
-    mut t0: glm::Vec2,
-    mut t1: glm::Vec2,
-    mut t2: glm::Vec2,
+pub fn triangle<I: GenericImage>(
+    t0: glm::IVec2,
+    t1: glm::IVec2,
+    t2: glm::IVec2,
     image: &mut I,
     color: I::Pixel,
 ) {
-    if t0.y == t1.y && t0.y == t2.y {
-        return;
-    }
+    let bboxmin = glm::ivec2(t0.x.min(t1.x).min(t2.x), t0.y.min(t1.y).min(t2.y));
+    let bboxmax = glm::ivec2(t0.x.max(t1.x).max(t2.x), t0.y.max(t1.y).max(t2.y));
+    let a = t0[1];
 
-    // 按y坐标排序
-    if t0.y > t1.y {
-        swap(&mut t0, &mut t1);
-    }
-    if t0.y > t2.y {
-        swap(&mut t0, &mut t2);
-    }
-    if t1.y > t2.y {
-        swap(&mut t1, &mut t2);
-    }
+    for px in bboxmin.x..=bboxmax.x {
+        for py in bboxmin.y..=bboxmax.y {
+            let bc_screen = barycentric(t0, t1, t2, glm::ivec2(px, py));
 
-    let total_height = t2.y - t0.y;
-
-    // 下半部分
-    // y in t0.y -> t1.y
-    for y in t0.y as i32..=t1.y as i32 {
-        let segment_height = t1.y - t0.y + 1.;
-        let alpha = (y as f32 - t0.y) as f32 / total_height as f32;
-        let beta = (y as f32 - t0.y) as f32 / segment_height as f32; // be careful with divisions by zero
-
-        let mut a = t0 + (t2 - t0) * alpha;
-        let mut b = t0 + (t1 - t0) * beta;
-        if a.x > b.x {
-            swap(&mut a, &mut b);
-        }
-        for j in a.x as i32..=b.x as i32 {
-            image.put_pixel(j as u32, y as u32, color);
-        }
-    }
-
-    // 上半部分
-    for y in t1.y as i32..=t2.y as i32 {
-        let segment_height = t2.y - t1.y + 1.;
-        let alpha = (y as f32 - t0.y) / total_height;
-        let beta = (y as f32 - t1.y) / segment_height;
-        let mut a = t0 + (t2 - t0) * alpha;
-        let mut b = t1 + (t2 - t1) * beta;
-        if a.x > b.x {
-            swap(&mut a, &mut b);
-        }
-        for j in a.x as i32..=b.x as i32 {
-            image.put_pixel(j as u32, y as u32, color);
+            if bc_screen.x < 0. || bc_screen.y < 0. || bc_screen.z < 0. {
+                continue;
+            }
+            image.put_pixel(px as u32, py as u32, color);
         }
     }
 }
