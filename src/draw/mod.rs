@@ -76,3 +76,27 @@ pub fn line<I: GenericImage>(mut a: glm::IVec2, mut b: glm::IVec2, image: &mut I
         }
     }
 }
+
+pub fn resterize<I: GenericImage>(
+    mut a: glm::IVec2,
+    mut b: glm::IVec2,
+    image: &mut I,
+    ybuffer: &mut [i32],
+    color: I::Pixel,
+) {
+    if (a.x - b.x).abs() < (a.y - b.y).abs() {
+        swap(&mut a.x, &mut a.y);
+        swap(&mut b.x, &mut b.y);
+    }
+    for x in a.x..=b.x {
+        let t = (x - a.x) as f32 / (b.x - a.x) as f32;
+        let y = a.y as f32 * (1. - t) + b.y as f32 * t;
+
+        if ybuffer[x as usize] < y as i32 {
+            ybuffer[x as usize] = y as i32;
+            for i in 0..image.height() {
+                image.put_pixel(x as u32, i, color);
+            }
+        }
+    }
+}
