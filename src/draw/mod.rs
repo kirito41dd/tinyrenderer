@@ -1,6 +1,6 @@
 use std::mem::swap;
 
-use image::GenericImage;
+use image::{GenericImage, Rgba};
 
 // 求重心坐标
 fn barycentric(a: glm::Vec3, b: glm::Vec3, c: glm::Vec3, p: glm::Vec3) -> glm::Vec3 {
@@ -53,6 +53,54 @@ pub fn triangle<I: GenericImage>(
             if zbuffer[idx as usize] <= pz {
                 zbuffer[idx as usize] = pz;
                 image.put_pixel(px as u32, py as u32, color);
+            }
+        }
+    }
+}
+
+pub fn triangle_with_texture<I: GenericImage<Pixel = Rgba<u8>>>(
+    a: glm::Vec3,
+    b: glm::Vec3,
+    c: glm::Vec3,
+    ta: glm::Vec3,
+    tb: glm::Vec3,
+    tc: glm::Vec3,
+    image: &mut I,
+    intensity: f32,
+    zbuffer: &mut [f32],
+    diffuse: &I,
+) {
+    let bboxmin = glm::vec2(a.x.min(b.x).min(c.x).max(0.), a.y.min(b.y).min(c.y).max(0.));
+    let bboxmax = glm::vec2(
+        a.x.max(b.x).max(c.x).min(image.width() as f32 - 1.),
+        a.y.max(b.y).max(c.y).min(image.height() as f32 - 1.),
+    );
+
+    for px in bboxmin.x as i32..=bboxmax.x as i32 {
+        for py in bboxmin.y as i32..=bboxmax.y as i32 {
+            let bc_screen = barycentric(a, b, c, glm::vec3(px as f32, py as f32, 0.));
+
+            if bc_screen.x < 0. || bc_screen.y < 0. || bc_screen.z < 0. {
+                continue;
+            }
+            // 计算z值
+            let pz = glm::dot(glm::vec3(a.z, b.z, c.z), bc_screen);
+            let tx = glm::dot(glm::vec3(ta.x, tb.x, tc.x), bc_screen) * diffuse.width() as f32;
+            let ty = glm::dot(glm::vec3(ta.y, tb.y, tc.y), bc_screen) * diffuse.height() as f32;
+            let idx = px + py * image.width() as i32;
+            let pi: Rgba<u8> = diffuse.get_pixel(tx as u32, ty as u32);
+            if zbuffer[idx as usize] <= pz {
+                zbuffer[idx as usize] = pz;
+                image.put_pixel(
+                    px as u32,
+                    py as u32,
+                    Rgba([
+                        (pi.0[0] as f32 * intensity) as u8,
+                        (pi.0[1] as f32 * intensity) as u8,
+                        (pi.0[2] as f32 * intensity) as u8,
+                        255,
+                    ]),
+                );
             }
         }
     }

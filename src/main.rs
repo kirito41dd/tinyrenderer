@@ -14,22 +14,33 @@ const BLACK: Rgba<u8> = Rgba([0, 0, 0, 255]);
 
 fn main() {
     let (width, height) = (800, 800);
+    let mut diffus = image::open("obj/african_head/african_head_diffuse.tga")
+        .unwrap()
+        .to_rgba8();
+    let diffuse = flip_vertical_in_place(&mut diffus);
     let mut image = ImageBuffer::<Rgba<u8>, _>::from_pixel(width, height, BLACK);
     let mut zbuffer = vec![f32::MIN; (image.width() * image.height()) as usize]; // 注意一定初始化为最小值
 
-    let input = BufReader::new(File::open("a.obj").unwrap());
-    let model: obj::Obj = obj::load_obj(input).unwrap();
+    let input = BufReader::new(File::open("obj/african_head/african_head.obj").unwrap());
+    let model = obj::load_obj::<obj::TexturedVertex, _, u32>(input).unwrap();
     let light_dir = glm::vec3(0., 0., -0.9);
+
     for arr in model.indices.chunks(3) {
-        let (a, b, c) = (
+        let (a, b, c, ta, tb, tc) = (
             model.vertices.get(arr[0] as usize).unwrap().position,
             model.vertices.get(arr[1] as usize).unwrap().position,
             model.vertices.get(arr[2] as usize).unwrap().position,
+            model.vertices.get(arr[0] as usize).unwrap().texture,
+            model.vertices.get(arr[1] as usize).unwrap().texture,
+            model.vertices.get(arr[2] as usize).unwrap().texture,
         );
-        let (a, b, c) = (
+        let (a, b, c, ta, tb, tc) = (
             glm::vec3(a[0], a[1], a[2]),
             glm::vec3(b[0], b[1], b[2]),
             glm::vec3(c[0], c[1], c[2]),
+            glm::vec3(ta[0], ta[1], ta[2]),
+            glm::vec3(tb[0], tb[1], tb[2]),
+            glm::vec3(tc[0], tc[1], tc[2]),
         );
         let (sa, sb, sc) = (
             glm::vec3(
@@ -56,18 +67,17 @@ fn main() {
 
         if intensity > 0. {
             // 既是光照强度，也能当面剔除用
-            draw::triangle(
+            draw::triangle_with_texture(
                 sa,
                 sb,
                 sc,
+                ta,
+                tb,
+                tc,
                 &mut image,
-                Rgba([
-                    (255. * intensity) as u8,
-                    (255. * intensity) as u8,
-                    (255. * intensity) as u8,
-                    255,
-                ]),
+                intensity,
                 &mut zbuffer,
+                &diffus,
             );
         }
     }
