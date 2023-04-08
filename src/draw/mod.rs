@@ -85,6 +85,7 @@ pub fn triangle_with_texture<I: GenericImage<Pixel = Rgba<u8>>>(
             }
             // 计算z值
             let pz = glm::dot(glm::vec3(a.z, b.z, c.z), bc_screen);
+            // 计算纹理插值
             let tx = glm::dot(glm::vec3(ta.x, tb.x, tc.x), bc_screen) * diffuse.width() as f32;
             let ty = glm::dot(glm::vec3(ta.y, tb.y, tc.y), bc_screen) * diffuse.height() as f32;
             let idx = px + py * image.width() as i32;

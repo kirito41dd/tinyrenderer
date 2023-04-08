@@ -12,7 +12,12 @@ const GREEN: Rgba<u8> = Rgba([0, 255, 0, 255]);
 const BLUE: Rgba<u8> = Rgba([0, 0, 255, 255]);
 const BLACK: Rgba<u8> = Rgba([0, 0, 0, 255]);
 
+fn v4p2v3(v: glm::Vec4) -> glm::Vec3 {
+    glm::vec3(v.x / v.w, v.y / v.w, v.z / v.w)
+}
+
 fn main() {
+    let camera: glm::Vec3 = glm::vec3(0., 0., 3.);
     let (width, height) = (800, 800);
     let mut diffus = image::open("obj/african_head/african_head_diffuse.tga")
         .unwrap()
@@ -24,6 +29,13 @@ fn main() {
     let input = BufReader::new(File::open("obj/african_head/african_head.obj").unwrap());
     let model = obj::load_obj::<obj::TexturedVertex, _, u32>(input).unwrap();
     let light_dir = glm::vec3(0., 0., -0.9);
+
+    #[rustfmt::skip]
+    let projection = glm::mat4(
+        1., 0., 0., 0., 
+        0., 1., 0., 0., 
+        0., 0., 1., -1./camera.z, 
+        0., 0., 0., 1.);
 
     for arr in model.indices.chunks(3) {
         let (a, b, c, ta, tb, tc) = (
@@ -42,6 +54,12 @@ fn main() {
             glm::vec3(tb[0], tb[1], tb[2]),
             glm::vec3(tc[0], tc[1], tc[2]),
         );
+
+        // 正交投影
+        let a = v4p2v3(projection * a.extend(1.));
+        let b = v4p2v3(projection * b.extend(1.));
+        let c = v4p2v3(projection * c.extend(1.));
+
         let (sa, sb, sc) = (
             glm::vec3(
                 ((a.x + 1.) * (width) as f32) / 2. + 0.5,
