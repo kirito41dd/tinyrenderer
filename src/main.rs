@@ -55,7 +55,7 @@ fn main() {
             glm::vec3(tc[0], tc[1], tc[2]),
         );
 
-        // 正交投影
+        // 透视投影
         let a = v4p2v3(projection * a.extend(1.));
         let b = v4p2v3(projection * b.extend(1.));
         let c = v4p2v3(projection * c.extend(1.));
