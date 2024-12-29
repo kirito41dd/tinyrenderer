@@ -2,6 +2,8 @@
 #![allow(dead_code)]
 use std::{fs::File, io::BufReader};
 
+use draw::{lookat, viewport};
+use glm::vec3;
 use image::{imageops::flip_vertical_in_place, ImageBuffer, Rgba};
 
 mod draw;
@@ -18,6 +20,8 @@ fn v4p2v3(v: glm::Vec4) -> glm::Vec3 {
 
 fn main() {
     let camera: glm::Vec3 = glm::vec3(0., 0., 3.);
+    let eye = glm::vec3(1., 1., 3.);
+    let center = glm::vec3(0., 0., 0.);
     let (width, height) = (800, 800);
     let mut diffus = image::open("obj/african_head/african_head_diffuse.tga")
         .unwrap()
@@ -30,12 +34,21 @@ fn main() {
     let model = obj::load_obj::<obj::TexturedVertex, _, u32>(input).unwrap();
     let light_dir = glm::vec3(0., 0., -0.9);
 
+    let model_view = lookat(eye, center, glm::vec3(0., 1., 0.));
+
     #[rustfmt::skip]
     let projection = glm::mat4(
-        1., 0., 0., 0., 
-        0., 1., 0., 0., 
-        0., 0., 1., -1./camera.z, 
+        1., 0., 0., 0.,
+        0., 1., 0., 0.,
+        0., 0., 1., -1./ glm::distance(eye, center)/2.,
         0., 0., 0., 1.);
+
+    let view_port = viewport(
+        width as i32 / 8,
+        height as i32 / 8,
+        width as i32 * 3 / 4,
+        height as i32 * 3 / 4,
+    );
 
     for arr in model.indices.chunks(3) {
         let (a, b, c, ta, tb, tc) = (
@@ -56,27 +69,10 @@ fn main() {
         );
 
         // 透视投影
-        let a = v4p2v3(projection * a.extend(1.));
-        let b = v4p2v3(projection * b.extend(1.));
-        let c = v4p2v3(projection * c.extend(1.));
-
-        let (sa, sb, sc) = (
-            glm::vec3(
-                ((a.x + 1.) * (width) as f32) / 2. + 0.5,
-                ((a.y + 1.) * (height) as f32) / 2. + 0.5,
-                a.z,
-            ),
-            glm::vec3(
-                ((b.x + 1.) * (width) as f32) / 2. + 0.5,
-                ((b.y + 1.) * (height) as f32) / 2. + 0.5,
-                b.z,
-            ),
-            glm::vec3(
-                ((c.x + 1.) * (width) as f32) / 2. + 0.5,
-                ((c.y + 1.) * (height) as f32) / 2. + 0.5,
-                c.z,
-            ),
-        );
+        let fin = view_port * projection * model_view;
+        let a = v4p2v3(fin * a.extend(1.));
+        let b = v4p2v3(fin * b.extend(1.));
+        let c = v4p2v3(fin * c.extend(1.));
 
         let n = glm::cross(c - a, b - a);
         let n = glm::normalize(n);
@@ -86,9 +82,9 @@ fn main() {
         if intensity > 0. {
             // 既是光照强度，也能当面剔除用
             draw::triangle_with_texture(
-                sa,
-                sb,
-                sc,
+                a,
+                b,
+                c,
                 ta,
                 tb,
                 tc,

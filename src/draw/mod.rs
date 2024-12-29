@@ -1,5 +1,6 @@
 use std::mem::swap;
 
+use glm::Vec3;
 use image::{GenericImage, Rgba};
 
 // 求重心坐标
@@ -160,4 +161,40 @@ pub fn resterize<I: GenericImage>(
             }
         }
     }
+}
+
+// eye 摄像机位置 center 焦点 up视角上方
+pub fn lookat(eye: glm::Vec3, center: glm::Vec3, up: Vec3) -> glm::Matrix4<f32> {
+    let z = glm::normalize(eye - center); // 向量ce
+    let x = glm::normalize(glm::cross(up, z)); // 同时垂直于 up和z的向量
+    let y = glm::normalize(glm::cross(z, x));
+    // 注意glm中是按列存的
+    #[rustfmt::skip]
+    let minv = glm::mat4(
+        x.x, y.x, z.x, 0., 
+        x.y, y.y, z.y, 0., 
+        x.z, y.z, z.z, 0., 
+        0., 0., 0., 1.,
+    );
+    #[rustfmt::skip]
+    let tr = glm::mat4(
+        1., 0., 0., 0., 
+        0., 1., 0., 0., 
+        0., 0., 1., 0., 
+        -eye.x, -eye.y, -eye.z, 1.,
+    );
+    minv * tr
+}
+
+pub fn viewport(x: i32, y: i32, w: i32, h: i32) -> glm::Matrix4<f32> {
+    let (x, y, w, h) = (x as f32, y as f32, w as f32, h as f32);
+    let d = 255.;
+    #[rustfmt::skip]
+    let m = glm::mat4(
+        w/2., 0., 0., 0., 
+        0., h/2., 0., 0., 
+        0., 0., d/2., 0., 
+        x+w/2., y+h/2., d/2., 1.,
+    );
+    m
 }
