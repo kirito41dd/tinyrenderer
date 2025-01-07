@@ -177,11 +177,14 @@ pub fn lookat(eye: glm::Vec3, center: glm::Vec3, up: Vec3) -> glm::Matrix4<f32> 
         0., 0., 0., 1.,
     );
     #[rustfmt::skip]
+    // 这里平移为什么是用的center? 因为把摄像机移动回去这个动作，我们并没有定义原来的摄像机位置，所以不知道位移的向量
+    // 但是原来的焦点可以认为是原点(0,0,0)，摄像机的位移和焦点位移是一样的，所以用center的坐标来计算
+    // 这里如果用eye，就相当于假设原来摄像机在原点，结果也对就是看着比预想中远
     let tr = glm::mat4(
         1., 0., 0., 0., 
         0., 1., 0., 0., 
         0., 0., 1., 0., 
-        -eye.x, -eye.y, -eye.z, 1.,
+        -center.x, -center.y, -center.z, 1.,
     );
     minv * tr
 }
