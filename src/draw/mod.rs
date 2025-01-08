@@ -1,7 +1,12 @@
 use std::mem::swap;
 
 use glm::Vec3;
-use image::{GenericImage, Rgba};
+use image::{GenericImage, Luma, Rgba};
+use our_gl::IShader;
+
+use crate::v4p2v3;
+
+pub mod our_gl;
 
 // 求重心坐标
 fn barycentric(a: glm::Vec3, b: glm::Vec3, c: glm::Vec3, p: glm::Vec3) -> glm::Vec3 {
@@ -108,6 +113,55 @@ pub fn triangle_with_texture<I: GenericImage<Pixel = Rgba<u8>>>(
     }
 }
 
+/// 注意现在输入的顶点坐标是齐次坐标
+pub fn triangle_with_shader<
+    I: GenericImage<Pixel = Rgba<u8>>,
+    I2: GenericImage<Pixel = Luma<u8>>,
+    S: IShader,
+>(
+    a_4d: glm::Vec4,
+    b_4d: glm::Vec4,
+    c_4d: glm::Vec4,
+    shader: &mut S,
+    image: &mut I,
+    zbuffer: &mut I2,
+) {
+    let a = v4p2v3(a_4d);
+    let b = v4p2v3(b_4d);
+    let c = v4p2v3(c_4d);
+    let bboxmin = glm::vec2(a.x.min(b.x).min(c.x).max(0.), a.y.min(b.y).min(c.y).max(0.));
+    let bboxmax = glm::vec2(
+        a.x.max(b.x).max(c.x).min(image.width() as f32 - 1.),
+        a.y.max(b.y).max(c.y).min(image.height() as f32 - 1.),
+    );
+
+    for px in bboxmin.x as i32..=bboxmax.x as i32 {
+        for py in bboxmin.y as i32..=bboxmax.y as i32 {
+            let bc_screen = barycentric(a, b, c, glm::vec3(px as f32, py as f32, 0.));
+            // 留意下这里，z和w都使用齐次坐标算的
+            let z = glm::dot(glm::vec3(a_4d.z, b_4d.z, c_4d.z), bc_screen);
+            let w = glm::dot(glm::vec3(a_4d.w, b_4d.w, c_4d.w), bc_screen);
+
+            let frag_depth = (z / w + 0.5) as u8;
+            let frag_depth = frag_depth.min(255).max(0);
+
+            if bc_screen.x < 0. || bc_screen.y < 0. || bc_screen.z < 0. {
+                continue;
+            }
+            let mut color = image::Rgba([0; 4]);
+            let discard = shader.fragment(bc_screen, &mut color);
+            let idx = px + py * image.width() as i32;
+            let zb: &mut Luma<u8> = zbuffer.get_pixel_mut(px as _, py as _);
+            if zb.0[0] <= frag_depth {
+                zb.0[0] = frag_depth;
+                if !discard {
+                    image.put_pixel(px as u32, py as u32, color);
+                }
+            }
+        }
+    }
+}
+
 pub fn line<I: GenericImage>(mut a: glm::IVec2, mut b: glm::IVec2, image: &mut I, color: I::Pixel) {
     let mut steep = false;
     if (a.x - b.x).abs() < (a.y - b.y).abs() {
@@ -163,27 +217,23 @@ pub fn resterize<I: GenericImage>(
     }
 }
 
+// z -> (0,0,-1)
 // eye 摄像机位置 center 焦点 up视角上方
 pub fn lookat(eye: glm::Vec3, center: glm::Vec3, up: Vec3) -> glm::Matrix4<f32> {
     let z = glm::normalize(eye - center); // 向量ce
     let x = glm::normalize(glm::cross(up, z)); // 同时垂直于 up和z的向量
     let y = glm::normalize(glm::cross(z, x));
-    // 注意glm中是按列存的
-    #[rustfmt::skip]
     let minv = glm::mat4(
-        x.x, y.x, z.x, 0., 
-        x.y, y.y, z.y, 0., 
-        x.z, y.z, z.z, 0., 
-        0., 0., 0., 1.,
+        x.x, y.x, z.x, 0., x.y, y.y, z.y, 0., x.z, y.z, z.z, 0., 0., 0., 0., 1.,
     );
     #[rustfmt::skip]
     // 这里平移为什么是用的center? 因为把摄像机移动回去这个动作，我们并没有定义原来的摄像机位置，所以不知道位移的向量
     // 但是原来的焦点可以认为是原点(0,0,0)，摄像机的位移和焦点位移是一样的，所以用center的坐标来计算
     // 这里如果用eye，就相当于假设原来摄像机在原点，结果也对就是看着比预想中远
     let tr = glm::mat4(
-        1., 0., 0., 0., 
-        0., 1., 0., 0., 
-        0., 0., 1., 0., 
+        1., 0., 0., 0.,
+        0., 1., 0., 0.,
+        0., 0., 1., 0.,
         -center.x, -center.y, -center.z, 1.,
     );
     minv * tr
