@@ -70,7 +70,7 @@ impl<'a> IShader for PhongShader<'a> {
 
         // let l = self.light_dir.extend(0.); // 之前是在顶点作色器中计算光照，现在要在切空间计算
         // let l = glm::normalize(vec4_to_3(l));
-        let l = self.light_dir; // 全局光照不需要进行矩阵变换
+        let l = glm::normalize(self.light_dir); // 全局光照不进行矩阵变换
         let intensity = glm::dot(n, l);
 
         let r = (px[0] as f32 * intensity) as u8;
