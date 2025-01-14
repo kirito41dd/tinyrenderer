@@ -68,8 +68,9 @@ impl<'a> IShader for PhongShader<'a> {
         let n = self.uniform_mit * n.extend(0.); // 法线映射 注意向量转换位齐次坐标是填0
         let n = glm::normalize(vec4_to_3(n)); // 齐次坐标投影回3d 注意向量不需要除w分量
 
-        let l = self.uniform_m * self.light_dir.extend(0.); // 之前是在顶点作色器中计算光照，现在要在切空间计算
-        let l = glm::normalize(vec4_to_3(l));
+        // let l = self.light_dir.extend(0.); // 之前是在顶点作色器中计算光照，现在要在切空间计算
+        // let l = glm::normalize(vec4_to_3(l));
+        let l = self.light_dir; // 全局光照不需要进行矩阵变换
         let intensity = glm::dot(n, l);
 
         let r = (px[0] as f32 * intensity) as u8;
