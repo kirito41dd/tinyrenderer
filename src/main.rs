@@ -23,15 +23,15 @@ fn v4p2v3(v: glm::Vec4) -> glm::Vec3 {
 }
 
 fn main() {
-    let eye = glm::vec3(0., -1., 3.); // camera
+    let eye = glm::vec3(1., 1., 3.); // camera
     let center = glm::vec3(0., 0., 0.);
     let up = glm::vec3(0., 1., 0.);
-    let light_dir = glm::normalize(glm::vec3(1., 1., 1.));
+    let light_dir = glm::normalize(glm::vec3(1., 1., 0.9));
     let (width, height) = (800, 800);
     let mut diffus = image::open("obj/african_head/african_head_diffuse.tga")
         .unwrap()
         .to_rgba8();
-    let diffuse = flip_vertical_in_place(&mut diffus);
+    let _ = flip_vertical_in_place(&mut diffus);
     let mut image = ImageBuffer::<Rgba<u8>, _>::from_pixel(width, height, BLACK);
     let mut zbuffer = ImageBuffer::<Luma<u8>, _>::from_pixel(width, height, Luma([0]));
     //let mut zbuffer = vec![f32::MIN; (image.width() * image.height()) as usize]; // 注意一定初始化为最小值
@@ -55,7 +55,9 @@ fn main() {
         height as i32 * 3 / 4,
     );
 
-    let mut shader = GouraudShader::new(&model, model_view, projection, view_port, light_dir);
+    let mut shader = GouraudShader::new(
+        &model, &diffus, model_view, projection, view_port, light_dir,
+    );
     for i in 0..model.indices.len() / 3 {
         let mut screen_coords: [glm::Vec4; 3] = [glm::Vec4::zero(); 3];
         for j in 0..3 {
