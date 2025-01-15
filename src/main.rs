@@ -44,8 +44,12 @@ fn main() {
     let mut diffus_nm = image::open("obj/african_head/african_head_nm.tga")
         .unwrap()
         .to_rgba8();
+    let mut diffus_spec = image::open("obj/african_head/african_head_spec.tga")
+        .unwrap()
+        .to_rgba8();
     let _ = flip_vertical_in_place(&mut diffus);
     let _ = flip_vertical_in_place(&mut diffus_nm);
+    let _ = flip_vertical_in_place(&mut diffus_spec);
     let mut image = ImageBuffer::<Rgba<u8>, _>::from_pixel(width, height, BLACK);
     let mut zbuffer = ImageBuffer::<Luma<u8>, _>::from_pixel(width, height, Luma([0]));
     //let mut zbuffer = vec![f32::MIN; (image.width() * image.height()) as usize]; // 注意一定初始化为最小值
@@ -74,7 +78,7 @@ fn main() {
     let mut _shader = GouraudShader::new(
         &model, &diffus, model_view, projection, view_port, light_dir,
     );
-    let mut shader = PhongShader::new(&model, &diffus, &diffus_nm, m, light_dir);
+    let mut shader = PhongShader::new(&model, &diffus, &diffus_nm, &diffus_spec, m, light_dir);
     for i in 0..model.indices.len() / 3 {
         let mut screen_coords: [glm::Vec4; 3] = [glm::Vec4::zero(); 3];
         for j in 0..3 {
