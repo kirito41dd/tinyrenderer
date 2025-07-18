@@ -10,7 +10,9 @@ use draw::{
     triangle_with_shader, viewport,
 };
 use image::{imageops::flip_vertical_in_place, ImageBuffer, Luma, Rgba};
-use num::Zero;
+use num::{One, Zero};
+
+use crate::draw::our_gl::shader_impl_shadow_shader::ShadowShader;
 
 mod draw;
 
@@ -36,7 +38,8 @@ fn main() {
     let eye = glm::vec3(1., 1., 3.); // camera
     let center = glm::vec3(0., 0., 0.);
     let up = glm::vec3(0., 1., 0.);
-    let light_dir = glm::normalize(glm::vec3(1., 1., 0.9));
+    // let light_dir = glm::normalize(glm::vec3(1., 1., 0.9));
+    let light_dir = glm::normalize(glm::vec3(1., 1., 0.));
     let (width, height) = (800, 800);
     let mut diffus = image::open("obj/african_head/african_head_diffuse.tga")
         .unwrap()
@@ -54,17 +57,21 @@ fn main() {
     let mut zbuffer = ImageBuffer::<Luma<u8>, _>::from_pixel(width, height, Luma([0]));
     //let mut zbuffer = vec![f32::MIN; (image.width() * image.height()) as usize]; // 注意一定初始化为最小值
 
-    let input = BufReader::new(File::open("obj/african_head/african_head.obj").unwrap());
+    // let input = BufReader::new(File::open("obj/african_head/african_head.obj").unwrap());
+    let input = BufReader::new(File::open("obj/diablo3/diablo3_pose.obj").unwrap());
     let model = obj::load_obj::<obj::TexturedVertex, _, u32>(input).unwrap();
 
     let model_view = lookat(eye, center, up);
+    let model_view_light = lookat(light_dir, center, up);
 
     #[rustfmt::skip]
-    let projection = glm::mat4(
+    let _projection = glm::mat4(
         1., 0., 0., 0.,
         0., 1., 0., 0.,
         0., 0., 1., -1./ glm::distance(eye, center),
         0., 0., 0., 1.);
+
+    let projection = glm::Mat4::one();
 
     let view_port = viewport(
         width as i32 / 8,
@@ -78,16 +85,17 @@ fn main() {
     let mut _shader = GouraudShader::new(
         &model, &diffus, model_view, projection, view_port, light_dir,
     );
-    let mut shader = PhongShader::new(&model, &diffus, &diffus_nm, &diffus_spec, m, light_dir);
+    let mut _shader = PhongShader::new(&model, &diffus, &diffus_nm, &diffus_spec, m, light_dir);
+    let mut shader = ShadowShader::new(&model, model_view_light, projection, view_port);
     for i in 0..model.indices.len() / 3 {
-        let mut screen_coords: [glm::Vec4; 3] = [glm::Vec4::zero(); 3];
+        let mut clip_coords: [glm::Vec4; 3] = [glm::Vec4::zero(); 3];
         for j in 0..3 {
-            screen_coords[j] = shader.vertex(i, j);
+            clip_coords[j] = shader.vertex(i, j);
         }
         triangle_with_shader(
-            screen_coords[0],
-            screen_coords[1],
-            screen_coords[2],
+            clip_coords[0],
+            clip_coords[1],
+            clip_coords[2],
             &mut shader,
             &mut image,
             &mut zbuffer,

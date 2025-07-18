@@ -2,6 +2,7 @@ use glm::Vec3;
 
 pub mod shader_impl_gouraud_shader;
 pub mod shader_impl_phong_shader;
+pub mod shader_impl_shadow_shader;
 
 pub trait IShader {
     /// 顶点着色器
